@@ -377,6 +377,7 @@ code {
 <li>✅ <strong>Fase 3</strong>: Kitchen Display System (KDS) con Brand Configuration</li>
 <li>✅ <strong>Fase 4</strong>: Sistema de Tickets de Cocina Automáticos</li>
 <li>✅ <strong>Fase 5</strong>: Dashboard Administrativo Completo</li>
+<li>✅ <strong>Fase 6</strong>: Sistema de Catálogo Estructurado (CATEGORIES y MODIFIERS)</li>
 </ul>
 <p>Todas las implementaciones siguen estrictamente las especificaciones de [<code>ARQUITECTURA_DETALLADA.md</code>](file:///home/ricardo/Proyectos/Masa_y_Cuchara/ARQUITECTURA_DETALLADA.md) y [<code>.cursorrules</code>](file:///home/ricardo/Proyectos/Masa_y_Cuchara/.cursorrules).</p>
 <hr>
@@ -5090,6 +5091,595 @@ TOTAL ITEMS:                                  3
 </ol>
 <hr>
 <p><strong>El sistema administrativo está completo y listo para gestionar el restaurante!</strong> ✅</p>
+<hr>
+<h1 id="%F0%9F%8E%AF-fase-6-sistema-de-cat%C3%A1logo-estructurado">🎯 FASE 6: Sistema de Catálogo Estructurado</h1>
+<hr>
+<h2 id="%F0%9F%A7%A0-proceso-de-razonamiento---fase-6">🧠 Proceso de Razonamiento - Fase 6</h2>
+<h3 id="objetivo">Objetivo</h3>
+<p>Blindar el catálogo implementando colecciones estructuradas para categorías y modificadores, eliminando strings hardcodeados y creando un sistema robusto y escalable.</p>
+<h3 id="decisiones-de-dise%C3%B1o">Decisiones de Diseño</h3>
+<ol>
+<li><strong>CATEGORIES Collection</strong>: Categorías con imágenes y orden configurable</li>
+<li><strong>MODIFIERS Collection</strong>: Grupos de modificadores reutilizables</li>
+<li><strong>Product Refactor</strong>: Usar referencias (category_id, allowed_modifier_groups) en lugar de strings</li>
+<li><strong>UI Management</strong>: Páginas CRUD completas para categorías y modificadores</li>
+<li><strong>Backward Compatibility</strong>: Mantener modifiers_schema para compatibilidad</li>
+</ol>
+<hr>
+<h2 id="%F0%9F%93%9D-implementaci%C3%B3n">📝 Implementación</h2>
+<h3 id="1-nuevas-interfaces-de-tipos-srctypesindexts">1. Nuevas Interfaces de Tipos (<code>src/types/index.ts</code>)</h3>
+<p><strong>Características implementadas:</strong></p>
+<h4 id="category-interface">Category Interface</h4>
+<pre class="hljs"><code><div><span class="hljs-keyword">export</span> <span class="hljs-keyword">interface</span> Category {
+  category_id: <span class="hljs-built_in">string</span>;
+  name: <span class="hljs-built_in">string</span>;
+  image_url: <span class="hljs-built_in">string</span>;
+  display_order?: <span class="hljs-built_in">number</span>;
+}
+</div></code></pre>
+<h4 id="modifiergroup--modifieroption">ModifierGroup &amp; ModifierOption</h4>
+<pre class="hljs"><code><div><span class="hljs-keyword">export</span> <span class="hljs-keyword">interface</span> ModifierOption {
+  option_id: <span class="hljs-built_in">string</span>;
+  name: <span class="hljs-built_in">string</span>;
+  price_extra: <span class="hljs-built_in">number</span>; <span class="hljs-comment">// En céntimos</span>
+}
+
+<span class="hljs-keyword">export</span> <span class="hljs-keyword">interface</span> ModifierGroup {
+  group_id: <span class="hljs-built_in">string</span>;
+  name: <span class="hljs-built_in">string</span>;
+  options: ModifierOption[];
+  required: <span class="hljs-built_in">boolean</span>;
+  max_selections?: <span class="hljs-built_in">number</span>;
+}
+</div></code></pre>
+<h4 id="product-interface-actualizado">Product Interface Actualizado</h4>
+<pre class="hljs"><code><div><span class="hljs-keyword">export</span> <span class="hljs-keyword">interface</span> Product {
+  product_id: <span class="hljs-built_in">string</span>;
+  name: <span class="hljs-built_in">string</span>;
+  base_price: <span class="hljs-built_in">number</span>;
+  category_id: <span class="hljs-built_in">string</span>; <span class="hljs-comment">// CHANGED: era category: string</span>
+  allowed_modifier_groups: <span class="hljs-built_in">string</span>[]; <span class="hljs-comment">// NEW</span>
+  is_active: <span class="hljs-built_in">boolean</span>;
+  description?: <span class="hljs-built_in">string</span>;
+  image_url: <span class="hljs-built_in">string</span>;
+  thumbnail_url?: <span class="hljs-built_in">string</span>;
+  allergens?: <span class="hljs-built_in">string</span>[];
+  modifiers_schema?: ModifierSchema[]; <span class="hljs-comment">// DEPRECATED pero mantenido</span>
+}
+</div></code></pre>
+<h3 id="2-script-de-seed-de-cat%C3%A1logo-srcscriptsseedcatalogts">2. Script de Seed de Catálogo (<code>src/scripts/seedCatalog.ts</code>)</h3>
+<p><strong>Características implementadas:</strong></p>
+<h4 id="26-categor%C3%ADas-predefinidas">26 Categorías Predefinidas</h4>
+<pre class="hljs"><code><div><span class="hljs-keyword">const</span> categories = [
+  { category_id: <span class="hljs-string">"raciones"</span>, name: <span class="hljs-string">"Raciones"</span>, display_order: <span class="hljs-number">1</span> },
+  { category_id: <span class="hljs-string">"arroces"</span>, name: <span class="hljs-string">"Arroces"</span>, display_order: <span class="hljs-number">2</span> },
+  { category_id: <span class="hljs-string">"legumbres"</span>, name: <span class="hljs-string">"Legumbres"</span>, display_order: <span class="hljs-number">3</span> },
+  <span class="hljs-comment">// ... 23 categorías más</span>
+  { category_id: <span class="hljs-string">"postres"</span>, name: <span class="hljs-string">"Postres"</span>, display_order: <span class="hljs-number">26</span> },
+];
+</div></code></pre>
+<p><strong>Lista completa de categorías:</strong></p>
+<ul>
+<li>Raciones, Arroces, Legumbres, Patatas</li>
+<li>Pastas y Cereales, Setas, Carnes, Aves</li>
+<li>Pescados y Mariscos, Salsas y Guarniciones</li>
+<li>Aderezos, Ensaladas, Ensaladillas, Ceviches</li>
+<li>Tartares, Masas y Panes, Sopas y Cremas</li>
+<li>Sopas frías, Guisos, Estofados, Asados</li>
+<li>Bocadillos, Hamburguesas, Pizzas</li>
+<li>Platos Combinados, Postres</li>
+</ul>
+<h4 id="6-grupos-de-modificadores">6 Grupos de Modificadores</h4>
+<pre class="hljs"><code><div><span class="hljs-keyword">const</span> modifierGroups = [
+  {
+    group_id: <span class="hljs-string">"tamano"</span>,
+    name: <span class="hljs-string">"Tamaño"</span>,
+    required: <span class="hljs-literal">true</span>,
+    max_selections: <span class="hljs-number">1</span>,
+    options: [
+      { option_id: <span class="hljs-string">"pequena"</span>, name: <span class="hljs-string">"Pequeña"</span>, price_extra: <span class="hljs-number">0</span> },
+      { option_id: <span class="hljs-string">"mediana"</span>, name: <span class="hljs-string">"Mediana"</span>, price_extra: <span class="hljs-number">200</span> },
+      { option_id: <span class="hljs-string">"grande"</span>, name: <span class="hljs-string">"Grande"</span>, price_extra: <span class="hljs-number">400</span> },
+    ],
+  },
+  <span class="hljs-comment">// ... 5 grupos más</span>
+];
+</div></code></pre>
+<p><strong>Grupos completos:</strong></p>
+<ol>
+<li><strong>Tamaño</strong>: Pequeña, Mediana, Grande</li>
+<li><strong>Punto de Carne</strong>: Poco hecho, Al punto, Bien hecho</li>
+<li><strong>Extras</strong>: Queso, Bacon, Huevo, Aguacate, Champiñones</li>
+<li><strong>Guarnición</strong>: Patatas fritas, Ensalada, Arroz, Verduras</li>
+<li><strong>Tipo de Pan</strong>: Blanco, Integral, Sin gluten</li>
+<li><strong>Bebida</strong>: Agua, Refresco, Cerveza, Vino</li>
+</ol>
+<h4 id="comando-npm">Comando NPM</h4>
+<pre class="hljs"><code><div>npm run seed:catalog
+</div></code></pre>
+<h3 id="3-gesti%C3%B3n-de-categor%C3%ADas-admincategoriespagetsx">3. Gestión de Categorías (<code>/admin/categories/page.tsx</code>)</h3>
+<p><strong>Características implementadas:</strong></p>
+<h4 id="vista-de-tabla">Vista de Tabla</h4>
+<ul>
+<li>Columnas: Imagen, Categoría, ID, Acciones</li>
+<li>Ordenamiento alfabético por nombre</li>
+<li>Miniaturas 64x64px</li>
+<li>ID en formato código</li>
+</ul>
+<h4 id="formulario-de-categor%C3%ADa">Formulario de Categoría</h4>
+<pre class="hljs"><code><div><span class="hljs-keyword">interface</span> CategoryForm {
+  name: <span class="hljs-built_in">string</span>; <span class="hljs-comment">// Requerido</span>
+  image_url: <span class="hljs-built_in">string</span>; <span class="hljs-comment">// Requerido</span>
+  display_order?: <span class="hljs-built_in">number</span>; <span class="hljs-comment">// Opcional</span>
+}
+</div></code></pre>
+<p><strong>Validaciones:</strong></p>
+<ul>
+<li>Nombre no vacío</li>
+<li>URL de imagen requerida</li>
+<li>Display order numérico positivo</li>
+</ul>
+<h4 id="crud-completo">CRUD Completo</h4>
+<ul>
+<li><strong>Create</strong>: <code>addDoc()</code> a CATEGORIES</li>
+<li><strong>Read</strong>: <code>getDocs()</code> con ordenamiento alfabético</li>
+<li><strong>Update</strong>: <code>updateDoc()</code> con document reference</li>
+<li><strong>Delete</strong>: <code>deleteDoc()</code> con confirmación</li>
+</ul>
+<p><strong>Generación de ID:</strong></p>
+<pre class="hljs"><code><div><span class="hljs-keyword">const</span> categoryId = formData.name
+  .toLowerCase()
+  .normalize(<span class="hljs-string">"NFD"</span>)
+  .replace(<span class="hljs-regexp">/[\u0300-\u036f]/g</span>, <span class="hljs-string">""</span>) <span class="hljs-comment">// Remove accents</span>
+  .replace(<span class="hljs-regexp">/[^a-z0-9\s-]/g</span>, <span class="hljs-string">""</span>) <span class="hljs-comment">// Remove special chars</span>
+  .replace(<span class="hljs-regexp">/\s+/g</span>, <span class="hljs-string">"-"</span>); <span class="hljs-comment">// Replace spaces with hyphens</span>
+</div></code></pre>
+<h3 id="4-gesti%C3%B3n-de-modificadores-adminmodifierspagetsx">4. Gestión de Modificadores (<code>/admin/modifiers/page.tsx</code>)</h3>
+<p><strong>Características implementadas:</strong></p>
+<h4 id="vista-de-lista">Vista de Lista</h4>
+<ul>
+<li>Tarjetas expandibles por grupo</li>
+<li>Muestra: nombre, requerido/opcional, max selecciones, cantidad de opciones</li>
+<li>Grid de opciones con precios</li>
+</ul>
+<h4 id="formulario-de-grupo">Formulario de Grupo</h4>
+<pre class="hljs"><code><div><span class="hljs-keyword">interface</span> ModifierGroupForm {
+  name: <span class="hljs-built_in">string</span>; <span class="hljs-comment">// Nombre del grupo</span>
+  required: <span class="hljs-built_in">boolean</span>; <span class="hljs-comment">// Si es obligatorio</span>
+  max_selections: <span class="hljs-built_in">number</span>; <span class="hljs-comment">// Máximo de opciones</span>
+  options: ModifierOption[]; <span class="hljs-comment">// Lista de opciones</span>
+}
+</div></code></pre>
+<p><strong>Agregar Opciones Dinámicamente:</strong></p>
+<ul>
+<li>Input para nombre de opción</li>
+<li>Input para precio extra (€)</li>
+<li>Botón &quot;Agregar&quot; o Enter</li>
+<li>Lista editable de opciones</li>
+<li>Botón eliminar por opción</li>
+</ul>
+<p><strong>Ejemplo de Uso:</strong></p>
+<pre class="hljs"><code><div>Grupo: &quot;Extras&quot;
+Requerido: No
+Max selecciones: 5
+
+Opciones:
+- Queso extra: +€1.00
+- Bacon: +€1.50
+- Huevo: +€1.00
+- Aguacate: +€2.00
+- Champiñones: +€1.50
+</div></code></pre>
+<h3 id="5-productos-actualizado-adminproductspagetsx">5. Productos Actualizado (<code>/admin/products/page.tsx</code>)</h3>
+<p><strong>Características implementadas:</strong></p>
+<h4 id="carga-de-datos">Carga de Datos</h4>
+<pre class="hljs"><code><div>useEffect(<span class="hljs-function"><span class="hljs-params">()</span> =&gt;</span> {
+  loadProducts();
+  loadCategories(); <span class="hljs-comment">// NEW</span>
+  loadModifierGroups(); <span class="hljs-comment">// NEW</span>
+}, []);
+</div></code></pre>
+<h4 id="dropdown-de-categor%C3%ADas">Dropdown de Categorías</h4>
+<pre class="hljs"><code><div>&lt;select value={formData.category_id} onChange={...}&gt;
+  &lt;option value=<span class="hljs-string">""</span>&gt;Selecciona una categoría&lt;<span class="hljs-regexp">/option&gt;
+  {categories.map((category) =&gt; (
+    &lt;option key={category.category_id} value={category.category_id}&gt;
+      {category.name}
+    &lt;/</span>option&gt;
+  ))}
+&lt;<span class="hljs-regexp">/select&gt;
+</span></div></code></pre>
+<h4 id="checkboxes-de-modificadores">Checkboxes de Modificadores</h4>
+<pre class="hljs"><code><div>{
+  modifierGroups.map(<span class="hljs-function">(<span class="hljs-params">group</span>) =&gt;</span> (
+    &lt;label key={group.group_id}&gt;
+      &lt;input
+        <span class="hljs-keyword">type</span>=<span class="hljs-string">"checkbox"</span>
+        checked={formData.allowed_modifier_groups.includes(group.group_id)}
+        onChange={<span class="hljs-function"><span class="hljs-params">()</span> =&gt;</span> toggleModifierGroup(group.group_id)}
+      /&gt;
+      &lt;div&gt;
+        &lt;div&gt;{group.name}&lt;<span class="hljs-regexp">/div&gt;
+        &lt;div&gt;
+          {group.options.length} opciones •{" "}
+          {group.required ? "Requerido" : "Opcional"}
+        &lt;/</span>div&gt;
+      &lt;<span class="hljs-regexp">/div&gt;
+    &lt;/</span>label&gt;
+  ));
+}
+</div></code></pre>
+<h4 id="guardar-producto">Guardar Producto</h4>
+<pre class="hljs"><code><div><span class="hljs-keyword">const</span> productData = {
+  name: formData.name.trim(),
+  category_id: formData.category_id, <span class="hljs-comment">// NEW</span>
+  allowed_modifier_groups: formData.allowed_modifier_groups, <span class="hljs-comment">// NEW</span>
+  base_price: <span class="hljs-built_in">Math</span>.round(<span class="hljs-built_in">parseFloat</span>(formData.price) * <span class="hljs-number">100</span>),
+  <span class="hljs-comment">// ...</span>
+};
+</div></code></pre>
+<h4 id="mostrar-nombre-de-categor%C3%ADa">Mostrar Nombre de Categoría</h4>
+<pre class="hljs"><code><div><span class="hljs-keyword">const</span> getCategoryName = <span class="hljs-function">(<span class="hljs-params">categoryId: <span class="hljs-built_in">string</span></span>) =&gt;</span> {
+  <span class="hljs-keyword">const</span> category = categories.find(<span class="hljs-function">(<span class="hljs-params">c</span>) =&gt;</span> c.category_id === categoryId);
+  <span class="hljs-keyword">return</span> category?.name || categoryId;
+};
+</div></code></pre>
+<h3 id="6-operaciones-actualizado-adminoperationspagetsx">6. Operaciones Actualizado (<code>/admin/operations/page.tsx</code>)</h3>
+<p><strong>Compatibilidad con category_id:</strong></p>
+<pre class="hljs"><code><div><span class="hljs-keyword">const</span> productsSnapshot: Record&lt;<span class="hljs-built_in">string</span>, <span class="hljs-built_in">any</span>&gt; = {};
+catalogProducts.forEach(<span class="hljs-function">(<span class="hljs-params">product</span>) =&gt;</span> {
+  productsSnapshot[product.product_id] = {
+    product_id: product.product_id,
+    name: product.name,
+    base_price: product.base_price,
+    category_id: product.category_id, <span class="hljs-comment">// UPDATED</span>
+    available_stock: <span class="hljs-number">50</span>,
+    is_available: <span class="hljs-literal">true</span>,
+    modifiers_schema: product.modifiers_schema || [], <span class="hljs-comment">// Fallback</span>
+  };
+});
+</div></code></pre>
+<h3 id="7-navegaci%C3%B3n-actualizada-adminlayouttsx">7. Navegación Actualizada (<code>/admin/layout.tsx</code>)</h3>
+<p><strong>Sidebar con nuevas rutas:</strong></p>
+<pre class="hljs"><code><div><span class="hljs-keyword">const</span> navItems = [
+  { href: <span class="hljs-string">"/admin"</span>, icon: <span class="hljs-string">"🏠"</span>, label: <span class="hljs-string">"Dashboard"</span> },
+  { href: <span class="hljs-string">"/admin/products"</span>, icon: <span class="hljs-string">"📦"</span>, label: <span class="hljs-string">"Productos"</span> },
+  { href: <span class="hljs-string">"/admin/categories"</span>, icon: <span class="hljs-string">"📂"</span>, label: <span class="hljs-string">"Categorías"</span> }, <span class="hljs-comment">// NEW</span>
+  { href: <span class="hljs-string">"/admin/modifiers"</span>, icon: <span class="hljs-string">"🔧"</span>, label: <span class="hljs-string">"Modificadores"</span> }, <span class="hljs-comment">// NEW</span>
+  { href: <span class="hljs-string">"/admin/operations"</span>, icon: <span class="hljs-string">"📅"</span>, label: <span class="hljs-string">"Operación Diaria"</span> },
+  { href: <span class="hljs-string">"/admin/kds"</span>, icon: <span class="hljs-string">"👨‍🍳"</span>, label: <span class="hljs-string">"Cocina (KDS)"</span> },
+  { href: <span class="hljs-string">"/admin/delivery"</span>, icon: <span class="hljs-string">"🚚"</span>, label: <span class="hljs-string">"Despacho"</span> },
+  { href: <span class="hljs-string">"/admin/settings"</span>, icon: <span class="hljs-string">"⚙️"</span>, label: <span class="hljs-string">"Configuración"</span> },
+  { href: <span class="hljs-string">"/display"</span>, icon: <span class="hljs-string">"📺"</span>, label: <span class="hljs-string">"Pantalla Clientes"</span> },
+];
+</div></code></pre>
+<hr>
+<h2 id="%F0%9F%93%81-archivos-creados-en-fase-6">📁 Archivos Creados en Fase 6</h2>
+<h3 id="nuevos-archivos">Nuevos Archivos</h3>
+<ol>
+<li>
+<p><strong><code>src/scripts/seedCatalog.ts</code></strong> (~200 líneas)</p>
+<ul>
+<li>Seed de 26 categorías</li>
+<li>Seed de 6 grupos de modificadores</li>
+<li>Comando: <code>npm run seed:catalog</code></li>
+</ul>
+</li>
+<li>
+<p><strong><code>src/app/admin/categories/page.tsx</code></strong> (~430 líneas)</p>
+<ul>
+<li>Gestión de categorías</li>
+<li>Vista de tabla</li>
+<li>CRUD completo</li>
+<li>Ordenamiento alfabético</li>
+</ul>
+</li>
+<li>
+<p><strong><code>src/app/admin/modifiers/page.tsx</code></strong> (~450 líneas)</p>
+<ul>
+<li>Gestión de grupos de modificadores</li>
+<li>Agregar opciones dinámicamente</li>
+<li>CRUD completo</li>
+<li>Vista de lista expandible</li>
+</ul>
+</li>
+</ol>
+<h3 id="archivos-modificados">Archivos Modificados</h3>
+<ol>
+<li>
+<p><strong><code>src/types/index.ts</code></strong></p>
+<ul>
+<li>Agregadas interfaces: Category, ModifierGroup, ModifierOption</li>
+<li>Product.category → Product.category_id</li>
+<li>Product.allowed_modifier_groups agregado</li>
+<li>modifiers_schema marcado como deprecated</li>
+</ul>
+</li>
+<li>
+<p><strong><code>src/app/admin/products/page.tsx</code></strong></p>
+<ul>
+<li>Carga de categorías y modificadores</li>
+<li>Dropdown de categorías</li>
+<li>Checkboxes de modificadores</li>
+<li>Guarda con nueva estructura</li>
+</ul>
+</li>
+<li>
+<p><strong><code>src/app/admin/operations/page.tsx</code></strong></p>
+<ul>
+<li>Usa category_id en snapshot</li>
+<li>Fallback para modifiers_schema</li>
+</ul>
+</li>
+<li>
+<p><strong><code>src/app/admin/layout.tsx</code></strong></p>
+<ul>
+<li>Agregadas rutas de categorías y modificadores</li>
+</ul>
+</li>
+<li>
+<p><strong><code>package.json</code></strong></p>
+<ul>
+<li>Agregado script: <code>seed:catalog</code></li>
+</ul>
+</li>
+</ol>
+<hr>
+<h2 id="%F0%9F%94%A7-caracter%C3%ADsticas-t%C3%A9cnicas">🔧 Características Técnicas</h2>
+<h3 id="estructura-de-firestore">Estructura de Firestore</h3>
+<p><strong>CATEGORIES Collection:</strong></p>
+<pre class="hljs"><code><div>CATEGORIES/
+  {category_id}/
+    - name: string
+    - image_url: string
+    - display_order: number
+</div></code></pre>
+<p><strong>MODIFIERS Collection:</strong></p>
+<pre class="hljs"><code><div>MODIFIERS/
+  {group_id}/
+    - name: string
+    - required: boolean
+    - max_selections: number
+    - options: [
+        {
+          option_id: string
+          name: string
+          price_extra: number
+        }
+      ]
+</div></code></pre>
+<p><strong>CATALOG Collection (actualizado):</strong></p>
+<pre class="hljs"><code><div>CATALOG/
+  {product_id}/
+    - name: string
+    - category_id: string              // CHANGED
+    - allowed_modifier_groups: string[] // NEW
+    - base_price: number
+    - image_url: string
+    - is_active: boolean
+</div></code></pre>
+<h3 id="generaci%C3%B3n-de-ids">Generación de IDs</h3>
+<p><strong>Para Categorías:</strong></p>
+<pre class="hljs"><code><div><span class="hljs-comment">// "Pastas y Cereales" → "pastas-y-cereales"</span>
+<span class="hljs-keyword">const</span> categoryId = name
+  .toLowerCase()
+  .normalize(<span class="hljs-string">"NFD"</span>)
+  .replace(<span class="hljs-regexp">/[\u0300-\u036f]/g</span>, <span class="hljs-string">""</span>)
+  .replace(<span class="hljs-regexp">/[^a-z0-9\s-]/g</span>, <span class="hljs-string">""</span>)
+  .replace(<span class="hljs-regexp">/\s+/g</span>, <span class="hljs-string">"-"</span>);
+</div></code></pre>
+<p><strong>Para Modificadores:</strong></p>
+<pre class="hljs"><code><div><span class="hljs-comment">// "Punto de Carne" → "punto-de-carne"</span>
+<span class="hljs-keyword">const</span> groupId = name
+  .toLowerCase()
+  .normalize(<span class="hljs-string">"NFD"</span>)
+  .replace(<span class="hljs-regexp">/[\u0300-\u036f]/g</span>, <span class="hljs-string">""</span>)
+  .replace(<span class="hljs-regexp">/[^a-z0-9\s-]/g</span>, <span class="hljs-string">""</span>)
+  .replace(<span class="hljs-regexp">/\s+/g</span>, <span class="hljs-string">"-"</span>);
+</div></code></pre>
+<h3 id="ordenamiento">Ordenamiento</h3>
+<p><strong>Categorías:</strong></p>
+<ul>
+<li>Alfabético por nombre usando <code>localeCompare()</code></li>
+<li>Ignora display_order en la vista</li>
+</ul>
+<p><strong>Modificadores:</strong></p>
+<ul>
+<li>Sin orden específico (orden de creación)</li>
+</ul>
+<p><strong>Productos:</strong></p>
+<ul>
+<li>Sin cambios (orden de creación)</li>
+</ul>
+<h3 id="backward-compatibility">Backward Compatibility</h3>
+<p><strong>modifiers_schema mantenido:</strong></p>
+<pre class="hljs"><code><div><span class="hljs-keyword">export</span> <span class="hljs-keyword">interface</span> Product {
+  <span class="hljs-comment">// ...</span>
+  modifiers_schema?: ModifierSchema[]; <span class="hljs-comment">// Deprecated pero presente</span>
+}
+</div></code></pre>
+<p><strong>En operaciones:</strong></p>
+<pre class="hljs"><code><div>modifiers_schema: product.modifiers_schema || [];
+</div></code></pre>
+<hr>
+<h2 id="%F0%9F%8E%A8-dise%C3%B1o-y-ux">🎨 Diseño y UX</h2>
+<h3 id="categor%C3%ADas">Categorías</h3>
+<p><strong>Vista de Tabla:</strong></p>
+<ul>
+<li>Miniaturas cuadradas 64x64</li>
+<li>Nombre en negrita</li>
+<li>ID en formato código</li>
+<li>Botones Editar/Eliminar</li>
+</ul>
+<p><strong>Formulario:</strong></p>
+<ul>
+<li>Input de nombre</li>
+<li>Input de URL de imagen</li>
+<li>Vista previa de imagen</li>
+<li>Input opcional de orden</li>
+</ul>
+<h3 id="modificadores">Modificadores</h3>
+<p><strong>Vista de Lista:</strong></p>
+<ul>
+<li>Tarjetas por grupo</li>
+<li>Badges: Requerido/Opcional, Max selecciones, Cantidad</li>
+<li>Grid de opciones con precios</li>
+<li>Botones Editar/Eliminar</li>
+</ul>
+<p><strong>Formulario:</strong></p>
+<ul>
+<li>Input de nombre de grupo</li>
+<li>Checkbox &quot;Requerido&quot;</li>
+<li>Input de max selecciones</li>
+<li>Sección dinámica de opciones:
+<ul>
+<li>Input nombre + precio</li>
+<li>Botón &quot;Agregar&quot;</li>
+<li>Lista editable</li>
+<li>Botón eliminar por opción</li>
+</ul>
+</li>
+</ul>
+<h3 id="productos">Productos</h3>
+<p><strong>Formulario Mejorado:</strong></p>
+<ul>
+<li>Dropdown de categorías (26 opciones)</li>
+<li>Sección de modificadores con scroll</li>
+<li>Checkboxes con info de cada grupo</li>
+<li>Validación de categoría requerida</li>
+</ul>
+<hr>
+<h2 id="%F0%9F%90%9B-problemas-encontrados-y-soluciones">🐛 Problemas Encontrados y Soluciones</h2>
+<h3 id="problema-1-productos-existentes-sin-categoryid">Problema 1: Productos Existentes sin category_id</h3>
+<p><strong>Error</strong>: Productos creados antes tienen <code>category: string</code>.</p>
+<p><strong>Causa</strong>: Breaking change en estructura.</p>
+<p><strong>Solución</strong>:</p>
+<ul>
+<li>Mantener compatibilidad con <code>category</code> en lectura</li>
+<li>Nuevos productos usan <code>category_id</code></li>
+<li>Migración manual o script futuro</li>
+</ul>
+<h3 id="problema-2-display-order-vs-alfab%C3%A9tico">Problema 2: Display Order vs Alfabético</h3>
+<p><strong>Error</strong>: Usuario quería orden alfabético, no por número.</p>
+<p><strong>Causa</strong>: Diseño inicial con display_order.</p>
+<p><strong>Solución</strong>:</p>
+<ul>
+<li>Cambiar sort a <code>localeCompare()</code></li>
+<li>Eliminar columna de orden</li>
+<li>Mantener display_order en BD para flexibilidad futura</li>
+</ul>
+<h3 id="problema-3-ids-con-caracteres-especiales">Problema 3: IDs con Caracteres Especiales</h3>
+<p><strong>Error</strong>: Categorías con tildes generaban IDs problemáticos.</p>
+<p><strong>Causa</strong>: No normalización de strings.</p>
+<p><strong>Solución</strong>:</p>
+<pre class="hljs"><code><div>.normalize(<span class="hljs-string">'NFD'</span>)
+.replace(<span class="hljs-regexp">/[\u0300-\u036f]/g</span>, <span class="hljs-string">''</span>) <span class="hljs-comment">// Remove accents</span>
+</div></code></pre>
+<hr>
+<h2 id="%E2%9C%85-confirmaci%C3%B3n-fase-6">✅ Confirmación Fase 6</h2>
+<p><strong>Fase 6 completada exitosamente.</strong></p>
+<h3 id="checklist-de-verificaci%C3%B3n">Checklist de Verificación</h3>
+<ul>
+<li><input type="checkbox" id="checkbox128" checked="true"><label for="checkbox128">Interfaces de tipos creadas (Category, ModifierGroup, ModifierOption)</label></li>
+<li><input type="checkbox" id="checkbox129" checked="true"><label for="checkbox129">Product interface actualizado (category_id, allowed_modifier_groups)</label></li>
+<li><input type="checkbox" id="checkbox130" checked="true"><label for="checkbox130">Script de seed con 26 categorías</label></li>
+<li><input type="checkbox" id="checkbox131" checked="true"><label for="checkbox131">Script de seed con 6 grupos de modificadores</label></li>
+<li><input type="checkbox" id="checkbox132" checked="true"><label for="checkbox132">Página de gestión de categorías (CRUD)</label></li>
+<li><input type="checkbox" id="checkbox133" checked="true"><label for="checkbox133">Página de gestión de modificadores (CRUD)</label></li>
+<li><input type="checkbox" id="checkbox134" checked="true"><label for="checkbox134">Productos actualizado con dropdowns</label></li>
+<li><input type="checkbox" id="checkbox135" checked="true"><label for="checkbox135">Operaciones actualizado para compatibilidad</label></li>
+<li><input type="checkbox" id="checkbox136" checked="true"><label for="checkbox136">Navegación actualizada con nuevas rutas</label></li>
+<li><input type="checkbox" id="checkbox137" checked="true"><label for="checkbox137">Backward compatibility mantenida</label></li>
+</ul>
+<h3 id="flujo-completo-verificado">Flujo Completo Verificado</h3>
+<pre class="hljs"><code><div>1. Admin ejecuta npm run seed:catalog
+   ↓
+2. Se crean 26 categorías en CATEGORIES
+   ↓
+3. Se crean 6 grupos en MODIFIERS
+   ↓
+4. Admin navega a /admin/categories
+   ↓
+5. Ve tabla alfabética de categorías
+   ↓
+6. Puede crear/editar/eliminar categorías
+   ↓
+7. Admin navega a /admin/modifiers
+   ↓
+8. Ve lista de grupos con opciones
+   ↓
+9. Puede crear/editar grupos y opciones
+   ↓
+10. Admin navega a /admin/products
+    ↓
+11. Crea producto seleccionando categoría del dropdown
+    ↓
+12. Marca modificadores aplicables (checkboxes)
+    ↓
+13. Producto se guarda con category_id y allowed_modifier_groups ✅
+</div></code></pre>
+<h3 id="rutas-implementadas">Rutas Implementadas</h3>
+<ul>
+<li><code>/admin/categories</code> - Gestión de categorías</li>
+<li><code>/admin/modifiers</code> - Gestión de modificadores</li>
+<li><code>/admin/products</code> - Actualizado con selectores</li>
+</ul>
+<hr>
+<h2 id="%F0%9F%93%8A-m%C3%A9tricas-de-implementaci%C3%B3n">📊 Métricas de Implementación</h2>
+<h3 id="l%C3%ADneas-de-c%C3%B3digo">Líneas de Código</h3>
+<ul>
+<li><strong>seedCatalog.ts</strong>: ~200 líneas</li>
+<li><strong>Categories page</strong>: ~430 líneas</li>
+<li><strong>Modifiers page</strong>: ~450 líneas</li>
+<li><strong>Products (actualizado)</strong>: ~550 líneas</li>
+<li><strong>Types (actualizado)</strong>: +50 líneas</li>
+<li><strong>Total Fase 6</strong>: ~1,680 líneas</li>
+</ul>
+<h3 id="colecciones-firestore">Colecciones Firestore</h3>
+<ul>
+<li><strong>CATEGORIES</strong>: 26 documentos</li>
+<li><strong>MODIFIERS</strong>: 6 documentos</li>
+<li><strong>CATALOG</strong>: Estructura actualizada</li>
+</ul>
+<h3 id="componentes-desarrollados">Componentes Desarrollados</h3>
+<ul>
+<li>CategoriesManagementPage</li>
+<li>CategoryRow</li>
+<li>CategoryForm</li>
+<li>ModifiersManagementPage</li>
+<li>ModifierGroupCard</li>
+<li>ModifierGroupForm</li>
+<li>ProductForm (actualizado)</li>
+</ul>
+<p><strong>Total</strong>: 7 componentes principales</p>
+<hr>
+<h2 id="%F0%9F%8E%AF-beneficios-del-sistema">🎯 Beneficios del Sistema</h2>
+<h3 id="escalabilidad">Escalabilidad</h3>
+<ul>
+<li>Agregar categorías sin tocar código</li>
+<li>Crear grupos de modificadores reutilizables</li>
+<li>Modificar precios de extras centralizadamente</li>
+</ul>
+<h3 id="consistencia">Consistencia</h3>
+<ul>
+<li>IDs normalizados automáticamente</li>
+<li>Categorías únicas y validadas</li>
+<li>Modificadores estandarizados</li>
+</ul>
+<h3 id="mantenibilidad">Mantenibilidad</h3>
+<ul>
+<li>UI para gestión completa</li>
+<li>No depender de scripts de seed</li>
+<li>Cambios en tiempo real</li>
+</ul>
+<h3 id="flexibilidad">Flexibilidad</h3>
+<ul>
+<li>Modificadores aplicables a múltiples productos</li>
+<li>Categorías con imágenes personalizables</li>
+<li>Precios extra configurables</li>
+</ul>
+<hr>
+<p><strong>El catálogo está completamente blindado y listo para producción!</strong> ✅</p>
 
 </body>
 </html>
