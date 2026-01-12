@@ -343,8 +343,12 @@ function ProductForm({ product, categories, modifierGroups, onClose, onSuccess }
       // Upload to Firebase Storage
       const imageUrl = await uploadImage(file, 'products');
 
-      // Update form data
-      setFormData({ ...formData, image_url: imageUrl });
+      // Update form data - use same URL for both image and thumbnail
+      setFormData({ 
+        ...formData, 
+        image_url: imageUrl,
+        thumbnail_url: imageUrl // Auto-populate thumbnail with same image
+      });
     } catch (error) {
       console.error('Error uploading image:', error);
       setErrors({ ...errors, image: 'Error al subir la imagen' });
