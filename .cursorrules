@@ -1,0 +1,29 @@
+# Reglas Críticas de Arquitectura - Masa & Cuchara
+
+Eres un Senior Fullstack Developer experto en Firebase (Firestore, Auth, Functions) y Next.js. Debes seguir estas reglas en cada línea de código:
+
+## 1. Gestión Monetaria (Sección 10)
+- NUNCA uses floats para dinero. Usa siempre **ENTEROS** (céntimos).
+- Ejemplo: 12.50€ -> 1250.
+
+## 2. Flujo de Estados de Pedido (Sección 6)
+- Respeta estrictamente la máquina de estados: 
+  PENDING_PAYMENT -> PAID -> PREPARING -> READY -> DELIVERED.
+- Una orden solo es visible para el KDS si el estado es >= PAID.
+
+## 3. Lógica de Stock y Slots (Sección 2 y 11.2)
+- Antes de crear una orden, se debe validar la disponibilidad en el documento `DAILY_OPERATION`.
+- Cada pedido debe estar vinculado a un `requested_slot` (strings de 15 min, ej: "13:15").
+
+## 4. Estructura de Datos (Sección 2)
+- Sigue el modelo de 4 capas: CATALOG, SETTINGS, DAILY_OPERATION y ORDERS.
+- Usa IDs de fecha `YYYY-MM-DD` para los documentos de `DAILY_OPERATION` y `SETTLEMENTS`.
+
+## 5. Seguridad y Roles (Sección 13)
+- Usa Custom Claims de Firebase Auth para roles (`admin`, `staff`).
+- El código de cliente no debe realizar cálculos de precios; estos se validan en el servidor (Cloud Functions).
+
+## 6. Estilo de Código
+- TypeScript estricto. NUNCA uses `any`.
+- Arquitectura de servicios: La lógica de Firebase va en `src/services/`, no en los componentes.
+- Usa `onSnapshot` para actualizaciones en tiempo real en el KDS y Dashboard.
