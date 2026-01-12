@@ -12,6 +12,7 @@ import {
 import { db } from '@/lib/firebase/config';
 import type { Product, Category, ModifierGroup } from '@/types/index';
 import { brandConfig } from '@/config/brand';
+import { uploadImage, validateImageFile } from '@/services/uploadService';
 
 export default function ProductsManagementPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -321,7 +322,36 @@ function ProductForm({ product, categories, modifierGroups, onClose, onSuccess }
     allowed_modifier_groups: product?.allowed_modifier_groups || [],
   });
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file
+    const validation = validateImageFile(file);
+    if (!validation.valid) {
+      setErrors({ ...errors, image: validation.error || 'Error de validación' });
+      return;
+    }
+
+    try {
+      setUploading(true);
+      setErrors({ ...errors, image: '' });
+
+      // Upload to Firebase Storage
+      const imageUrl = await uploadImage(file, 'products');
+
+      // Update form data
+      setFormData({ ...formData, image_url: imageUrl });
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      setErrors({ ...errors, image: 'Error al subir la imagen' });
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
@@ -489,10 +519,31 @@ function ProductForm({ product, categories, modifierGroups, onClose, onSuccess }
             </p>
           </div>
 
+          {/* Image Upload */}
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2">
+              Subir Imagen *
+            </label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              disabled={uploading || saving}
+              className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
+            />
+            {uploading && (
+              <p className="text-blue-600 text-sm mt-1">⏳ Subiendo imagen...</p>
+            )}
+            {errors.image && <p className="text-red-600 text-sm mt-1">{errors.image}</p>}
+            <p className="text-xs text-gray-500 mt-1">
+              JPG, PNG, WEBP o GIF. Máximo 5MB.
+            </p>
+          </div>
+
           {/* Image URL */}
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-2">
-              URL de Imagen *
+              URL de Imagen {formData.image_url && '✓'}
             </label>
             <input
               type="url"
@@ -500,8 +551,12 @@ function ProductForm({ product, categories, modifierGroups, onClose, onSuccess }
               onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
               className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500"
               placeholder="https://example.com/image.jpg"
+              readOnly={uploading}
             />
             {errors.image_url && <p className="text-red-600 text-sm mt-1">{errors.image_url}</p>}
+            <p className="text-xs text-gray-500 mt-1">
+              Se completa automáticamente al subir una imagen
+            </p>
           </div>
 
           {/* Thumbnail URL */}
