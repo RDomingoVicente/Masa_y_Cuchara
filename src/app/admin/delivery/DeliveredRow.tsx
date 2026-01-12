@@ -1,6 +1,7 @@
 
 // Add this component after DeliveryRow component
 import type { Order } from '@/types/index';
+import { brandConfig } from '@/config/brand';
 //import brandConfig from '@/config/brandConfig';
 
 function DeliveredRow({

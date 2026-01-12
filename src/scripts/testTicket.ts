@@ -14,6 +14,7 @@ async function testTicketGeneration() {
   const testOrder: Order = {
     order_id: 'test_' + Date.now(),
     customer: {
+      uid: 'test-user-id',
       display_name: 'Juan Pérez',
       phone: '+34600123456',
     },
@@ -22,31 +23,28 @@ async function testTicketGeneration() {
         product_id: 'pizza_margarita',
         name: 'Pizza Margarita',
         qty: 2,
-        unit_price_cents: 1200,
+        unit_price: 1200,
+        subtotal: 2400,
         modifiers: [
-          { value: 'Mediana' },
-          { value: 'Extra queso' },
+          { type: 'Tamaño', value: 'Mediana' },
+          { type: 'Extras', value: 'Extra queso' },
         ],
       },
       {
         product_id: 'cerveza',
         name: 'Cerveza',
         qty: 1,
-        unit_price_cents: 300,
+        unit_price: 300,
+        subtotal: 300,
         modifiers: [
-          { value: 'Lager' },
+          { type: 'Tipo', value: 'Lager' },
         ],
       },
     ],
-    pricing: {
-      subtotal_cents: 2700,
-      tax_cents: 270,
-      total_cents: 2970,
-    },
     logistics: {
       order_date: '2026-01-12',
       slot_id: '13:15',
-      type: 'pickup',
+      type: 'PICKUP' as any,
     },
     workflow: {
       status: 'PAID' as any,
@@ -56,8 +54,14 @@ async function testTicketGeneration() {
       delivered_at: null,
     },
     payment: {
+      status: 'COMPLETED' as any,
       stripe_session_id: 'test_session_123',
-      stripe_payment_intent: 'test_pi_123',
+      total_amount: 2970,
+      currency: 'EUR',
+    },
+    metadata: {
+      source: 'DASHBOARD' as any,
+      wa_notified: false,
     },
   };
 
