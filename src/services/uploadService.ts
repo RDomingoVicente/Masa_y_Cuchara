@@ -64,3 +64,83 @@ export function validateImageFile(file: File): { valid: boolean; error?: string 
 
   return { valid: true };
 }
+
+/**
+ * Crea una miniatura de una imagen
+ * 
+ * @param file - Archivo de imagen original
+ * @param maxWidth - Ancho máximo de la miniatura (default: 200)
+ * @param maxHeight - Alto máximo de la miniatura (default: 200)
+ * @returns Promise con el archivo de la miniatura
+ */
+export async function createThumbnail(
+  file: File,
+  maxWidth: number = 200,
+  maxHeight: number = 200
+): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      const img = new Image();
+      
+      img.onload = () => {
+        // Calcular dimensiones manteniendo aspect ratio
+        let width = img.width;
+        let height = img.height;
+        
+        if (width > height) {
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = (width * maxHeight) / height;
+            height = maxHeight;
+          }
+        }
+        
+        // Crear canvas y redimensionar
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('No se pudo crear el contexto del canvas'));
+          return;
+        }
+        
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Convertir canvas a blob
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(new Error('No se pudo crear la miniatura'));
+              return;
+            }
+            
+            // Crear archivo con nombre modificado
+            const thumbnailFile = new File(
+              [blob],
+              `thumb_${file.name}`,
+              { type: file.type }
+            );
+            
+            resolve(thumbnailFile);
+          },
+          file.type,
+          0.85 // Calidad de compresión
+        );
+      };
+      
+      img.onerror = () => reject(new Error('Error al cargar la imagen'));
+      img.src = e.target?.result as string;
+    };
+    
+    reader.onerror = () => reject(new Error('Error al leer el archivo'));
+    reader.readAsDataURL(file);
+  });
+}

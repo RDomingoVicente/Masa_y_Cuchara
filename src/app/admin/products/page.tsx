@@ -12,7 +12,7 @@ import {
 import { db } from '@/lib/firebase/config';
 import type { Product, Category, ModifierGroup } from '@/types/index';
 import { brandConfig } from '@/config/brand';
-import { uploadImage, validateImageFile } from '@/services/uploadService';
+import { uploadImage, validateImageFile, createThumbnail } from '@/services/uploadService';
 
 export default function ProductsManagementPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -340,14 +340,18 @@ function ProductForm({ product, categories, modifierGroups, onClose, onSuccess }
       setUploading(true);
       setErrors({ ...errors, image: '' });
 
-      // Upload to Firebase Storage
+      // Upload original image to Firebase Storage
       const imageUrl = await uploadImage(file, 'products');
 
-      // Update form data - use same URL for both image and thumbnail
+      // Create and upload thumbnail
+      const thumbnailFile = await createThumbnail(file, 200, 200);
+      const thumbnailUrl = await uploadImage(thumbnailFile, 'products/thumbnails');
+
+      // Update form data with both URLs
       setFormData({ 
         ...formData, 
         image_url: imageUrl,
-        thumbnail_url: imageUrl // Auto-populate thumbnail with same image
+        thumbnail_url: thumbnailUrl
       });
     } catch (error) {
       console.error('Error uploading image:', error);
@@ -377,17 +381,21 @@ function ProductForm({ product, categories, modifierGroups, onClose, onSuccess }
     try {
       setSaving(true);
 
-      const productData = {
+      const productData: any = {
         name: formData.name.trim(),
         description: formData.description.trim(),
         category_id: formData.category_id,
         allowed_modifier_groups: formData.allowed_modifier_groups,
         base_price: Math.round(parseFloat(formData.price) * 100),
         image_url: formData.image_url.trim(),
-        thumbnail_url: formData.thumbnail_url.trim() || undefined,
         is_active: formData.is_active,
         allergens: product?.allergens || [],
       };
+
+      // Only include thumbnail_url if it has a value
+      if (formData.thumbnail_url && formData.thumbnail_url.trim()) {
+        productData.thumbnail_url = formData.thumbnail_url.trim();
+      }
 
       if (product) {
         await updateDoc(doc(db, 'CATALOG', product.product_id), productData);
@@ -536,11 +544,11 @@ function ProductForm({ product, categories, modifierGroups, onClose, onSuccess }
               className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
             />
             {uploading && (
-              <p className="text-blue-600 text-sm mt-1">⏳ Subiendo imagen...</p>
+              <p className="text-blue-600 text-sm mt-1">⏳ Subiendo imagen y generando miniatura...</p>
             )}
             {errors.image && <p className="text-red-600 text-sm mt-1">{errors.image}</p>}
             <p className="text-xs text-gray-500 mt-1">
-              JPG, PNG, WEBP o GIF. Máximo 5MB.
+              JPG, PNG, WEBP o GIF. Máximo 5MB. Se genera miniatura automáticamente.
             </p>
           </div>
 
@@ -566,7 +574,7 @@ function ProductForm({ product, categories, modifierGroups, onClose, onSuccess }
           {/* Thumbnail URL */}
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-2">
-              URL de Miniatura (opcional)
+              URL de Miniatura {formData.thumbnail_url && '✓'}
             </label>
             <input
               type="url"
@@ -574,7 +582,11 @@ function ProductForm({ product, categories, modifierGroups, onClose, onSuccess }
               onChange={(e) => setFormData({ ...formData, thumbnail_url: e.target.value })}
               className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-purple-500"
               placeholder="https://example.com/thumbnail.jpg"
+              readOnly={uploading}
             />
+            <p className="text-xs text-gray-500 mt-1">
+              Miniatura 200x200px generada automáticamente
+            </p>
           </div>
 
           {/* Active Toggle */}
